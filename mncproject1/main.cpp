@@ -339,7 +339,65 @@ int readTopologyFile(char* filePath) {
 	fclose(fp);
 	return 0;
 }
+int main(int nNumberofArgs, char* args[]) {
+
+
+	int c;
+
+	char* filePath;
+
+	//Get the ip address and port number and store it in the local variables
+		getIP();
 
 
 
+	printf("Printing nodes table..\n");
+
+
+	/*TODO change!
+ 	 * Parse the arguments
+	 * http://www.gnu.org/software/libc/manual/html_node/Example-of-Getopt.html
+	*/
+	while ((c = getopt(nNumberofArgs, args, "t:i:")) != -1) {
+		switch (c) {
+		case 't':
+			cout << "Filename:" << optarg << endl;
+			strcpy(filePath, optarg);
+			break;
+
+		case 'i':
+			//argument should be an integer number (seconds)
+			if (!isNumber(optarg)) {
+				fprintf(stderr, "Invalid value for -i\n");
+				cout << "Invalid value for -i\n";
+				return -1;
+			}
+			timeout = atoi(optarg);
+			break;
+
+		case '?':
+			break;
+
+		default:
+			cout
+					<< "Usage: %s  -t <topology-file-name> -i <routing-update-interval-in-seconds>", args[0];
+
+			return -1;
+		}
+	}
+
+	//read the local topology file
+	int r  = readTopologyFile(filePath);
+	printf("%d", r);
+
+
+
+
+//	print_nodes_table();
+
+	cout << endl << "sock number : " << createSocket(59999);
+
+
+	return 0;
+}
 
