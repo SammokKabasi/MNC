@@ -32,8 +32,6 @@ using namespace std;
 #define STDIN 0
 #define MAXIMUM_TIMEOUTS 3
 
-int readTopologyFile();
-
 int numberOfNodes;
 
 int numberOfNeighbours;
@@ -78,7 +76,11 @@ int getIP() {
 	return 0;
 }
 
-char* port_number; //port number of current process
+
+int readTopologyFile(char* filePath);
+
+
+char* portNumber; //port number of current process
 
 /**
  * Startup function.
@@ -110,59 +112,6 @@ int isNumber(char *input)
 
 int timeout = -1;
 
-int main(int nNumberofArgs, char* args[]) {
-
-
-	int c;
-
-	char* file_path;
-
-	//Get the ip address and port number and store it in the local variables
-		getIP();
-
-	//read the local topology file
-	int c = readTopologyFile();
-	printf("%d", c);
-
-	printf("Printing nodes table..\n");
-
-
-	/*
- 	 * Parse the arguments
-	 * http://www.gnu.org/software/libc/manual/html_node/Example-of-Getopt.html
-	*/
-	while((c = getopt(nNumberofArgs, args,"t:i:")) != -1){
-		switch (c){
-		case 't':
-			cout<<"Filename:"<<optarg<<endl;
-                       strcpy(file_path, optarg);
-                       break;
-
-	        case 'i':   if(!isNumber(optarg)){
-                           fprintf(stderr, "Invalid value for -i\n");
-			   cout<<"Invalid value for -i\n";
-                           return -1;
-                       }
-                       timeout = atoi(optarg);
-                       break;
-
-           case '?':   break;
-
-           default:
-			cout<<"Usage: %s -t <path_to_topology_file> -i <routing_update_interval>\n", args[0];
-
-                       return -1;
-       }
-   }
-
-
-
-
-
-	print_nodes_table();
-	return 0;
-}
-
 struct nodes_table_info {
 	uint32_t serverIp;
 	uint16_t serverPort;
@@ -188,17 +137,20 @@ struct nodes_table_info {
 struct nodes_table_info nodes[5];
 
 
-struct server_details {
+struct serverInfo {
 	uint32_t serverIp;
 	uint16_t port;
 	uint16_t serverId;
-	uint16_t linkCost;
+	uint16_t cost;
 };
 
+//This is the format of the message packet.
+
 struct routing_packet{
+	uint16_t numberOfUpdateFields;
 	uint16_t serverPort;
 	uint32_t serverIp;
-	uint16_t updateFields;
+	struct serverInfo updateFields[100];
 };
 
 /** TODO : change
@@ -242,13 +194,69 @@ void print_nodes_table() {
 }
 
 
-int readTopologyFile() {
+
+/**
+ *
+ */
+int createSocket(int listeningPort) {
+	int listen_sock_fd = -1;
+		//REQUIRED STRUCTS
+		struct addrinfo listen_sock_details, *ai, *p;
+
+
+		memset(&listen_sock_details,0, sizeof (listen_sock_details));
+		listen_sock_details.ai_family = AF_INET;
+		listen_sock_details.ai_socktype = SOCK_DGRAM;
+		listen_sock_details.ai_flags = AI_PASSIVE | AI_ADDRCONFIG ;
+		listen_sock_details.ai_protocol = 0;
+		if(listeningPort != -1){
+		char portString[6];
+		memset(&portString, '\0', 6);
+		sprintf(portString, "%d", listeningPort);
+		int retval = getaddrinfo(NULL, portString, &listen_sock_details, &ai);
+		if (retval!=0){
+			fprintf(stderr, "UDP_socket creation selectserver: %s\n", gai_strerror(retval));
+		        return(-1);
+		}
+		}else{
+		int retval = getaddrinfo(NULL, "22134", &listen_sock_details, &ai);
+		if (retval!=0){
+			fprintf(stderr, "sending_socket creation selectserver: %s\n", gai_strerror(retval));
+		        return (-1);
+		}
+		}
+		for(p = ai;p != NULL; p = p->ai_next){
+			listen_sock_fd = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
+			if(listen_sock_fd < 0)
+				continue;
+
+			int y=1;
+			setsockopt(listen_sock_fd, SOL_SOCKET, SO_REUSEADDR, &y, sizeof(int));
+
+			if(bind(listen_sock_fd, p->ai_addr, p->ai_addrlen) < 0){
+				close(listen_sock_fd);
+				continue;
+			}
+			break;
+		}
+
+		if(p==NULL){
+			fprintf(stderr, "listen_socket selectserver: failed to bind\n");
+	        	return(-2);
+		}
+
+		freeaddrinfo(ai);
+		return listen_sock_fd;
+}
+
+/**
+ * Reads the topology file, parses the values and populates the nodes_table_info struct object "nodes"
+ */
+int readTopologyFile(char* filePath) {
 
 	FILE *fp;
 	char buf[255];
-	char inputFileName[] =
-			"C:\\Users\\Sammok\\workspace_for_c\\MNCProject2C++\\foliage.txt";
-	fp = fopen(inputFileName, "r");
+	fp = fopen(filePath, "r");
 
 	if (NULL == fp) {
 		printf("Error opening file");
@@ -331,5 +339,7 @@ int readTopologyFile() {
 	fclose(fp);
 	return 0;
 }
+
+
 
 
