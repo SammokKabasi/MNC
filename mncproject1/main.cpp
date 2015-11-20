@@ -451,6 +451,65 @@ int main(int nNumberofArgs, char* args[]) {
 
 	cout << endl << "sock number : " << createSocket(59999);
 
+
+	fd_set master;	//mastersocket
+	fd_set read_fds; //read socket
+	int fdmax; 	//number of fds in set
+	FD_ZERO(&master);
+	FD_ZERO(&read_fds);
+
+
+
+	//get the listening port number of the host server id, and create a socket and listen at that port.
+	//we know our server id. Listening port number is obtained by getting port number of that server id by looking up the nodes object.
+	int i = 0;
+	uint16_t port;
+	while (i < numberOfNodes) {
+		if (hostServerId == nodes[i].serverId) {
+			port = nodes[i].serverPort;
+		}
+	}
+
+	int listeningSocket = createSocket(port);
+
+	//Now create a socket for sending packets
+	//lets select a port 38990 for sending, and keep incrementingg till it finds a valid empty port number
+	int sendingSocket = -1;
+	int sendingPort = 38990;
+	while (sendingSocket == -1) {
+		sendingSocket = createSocket(++sendingPort);
+		cout << "Sending messages from port " + sendingPort;
+	}
+	
+	
+
+	
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 	return 0;
 }
 
@@ -475,7 +534,7 @@ void printRoutingTableWithProperFormat() {
 		cout << endl << "Routing table : " << endl;
 
 		cout<<"\t";
-		for (int i = 0; i < numberOfNodes; i++) {
+		for (int i = 0; i < numberOfNodes; if++) {
 			cout << "|Node " <<i << "\t";
 		}
 		cout<<endl;
@@ -505,5 +564,8 @@ cout<<"\nserverId\t|nextHopId\t|linkCost\n";
 		printf("\n");
 	}
 }
+
+
+
 
 
