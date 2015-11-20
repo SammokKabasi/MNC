@@ -44,6 +44,10 @@ char* ip_address;
 
 void print_nodes_table() ;
 
+//void print_routing_table3();
+
+
+
 /*
  http://stackoverflow.com/questions/4139405/how-to-know-ip-address-for-interfaces-in-c
 
@@ -112,6 +116,8 @@ int isNumber(char *input)
 
 int timeout = -1;
 
+void printRoutingTable();
+
 struct nodes_table_info {
 	uint32_t serverIp;
 	uint16_t serverPort;
@@ -134,7 +140,7 @@ struct nodes_table_info {
 	}
 };
 
-struct nodes_table_info nodes[5];
+struct nodes_table_info nodes[10];
 
 
 struct serverInfo {
@@ -146,12 +152,29 @@ struct serverInfo {
 
 //This is the format of the message packet.
 
-struct routing_packet{
+struct RoutingPacket{
 	uint16_t numberOfUpdateFields;
 	uint16_t serverPort;
 	uint32_t serverIp;
-	struct serverInfo updateFields[100];
+	struct serverInfo updateFields[10];
 };
+
+struct RoutingTableEntry{
+	uint16_t srcServerId;
+	uint16_t destServerId;
+	int nextHopId;
+	uint16_t linkCost;
+
+	RoutingTableEntry(){
+		srcServerId = -1;
+		destServerId = -1;
+		nextHopId = -1;
+		linkCost = 0xffff;
+	}
+};
+struct RoutingTableEntry routingTable[10][10];
+
+
 
 /** TODO : change
  * converts string array ip address to a uint32_t object
@@ -194,65 +217,67 @@ void print_nodes_table() {
 }
 
 
-
-/**
+/**TODO: change!
  *
  */
 int createSocket(int listeningPort) {
 	int listen_sock_fd = -1;
-		//REQUIRED STRUCTS
-		struct addrinfo listen_sock_details, *ai, *p;
+	//REQUIRED STRUCTS
+	struct addrinfo listen_sock_details, *ai, *p;
 
-
-		memset(&listen_sock_details,0, sizeof (listen_sock_details));
-		listen_sock_details.ai_family = AF_INET;
-		listen_sock_details.ai_socktype = SOCK_DGRAM;
-		listen_sock_details.ai_flags = AI_PASSIVE | AI_ADDRCONFIG ;
-		listen_sock_details.ai_protocol = 0;
-		if(listeningPort != -1){
+	memset(&listen_sock_details, 0, sizeof(listen_sock_details));
+	listen_sock_details.ai_family = AF_INET;
+	listen_sock_details.ai_socktype = SOCK_DGRAM;
+	listen_sock_details.ai_flags = AI_PASSIVE | AI_ADDRCONFIG;
+	listen_sock_details.ai_protocol = 0;
+	if (listeningPort != -1) {
 		char portString[6];
 		memset(&portString, '\0', 6);
 		sprintf(portString, "%d", listeningPort);
 		int retval = getaddrinfo(NULL, portString, &listen_sock_details, &ai);
-		if (retval!=0){
-			fprintf(stderr, "UDP_socket creation selectserver: %s\n", gai_strerror(retval));
-		        return(-1);
+		if (retval != 0) {
+			fprintf(stderr, "UDP_socket creation selectserver: %s\n",
+					gai_strerror(retval));
+			return (-1);
 		}
-		}else{
+	} else {
 		int retval = getaddrinfo(NULL, "22134", &listen_sock_details, &ai);
-		if (retval!=0){
-			fprintf(stderr, "sending_socket creation selectserver: %s\n", gai_strerror(retval));
-		        return (-1);
+		if (retval != 0) {
+			fprintf(stderr, "sending_socket creation selectserver: %s\n",
+					gai_strerror(retval));
+			return (-1);
 		}
+	}
+	for (p = ai; p != NULL; p = p->ai_next) {
+		listen_sock_fd = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
+		if (listen_sock_fd < 0)
+			continue;
+
+		int y = 1;
+		setsockopt(listen_sock_fd, SOL_SOCKET, SO_REUSEADDR, &y, sizeof(int));
+
+		if (bind(listen_sock_fd, p->ai_addr, p->ai_addrlen) < 0) {
+			close(listen_sock_fd);
+			continue;
 		}
-		for(p = ai;p != NULL; p = p->ai_next){
-			listen_sock_fd = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
-			if(listen_sock_fd < 0)
-				continue;
+		break;
+	}
 
-			int y=1;
-			setsockopt(listen_sock_fd, SOL_SOCKET, SO_REUSEADDR, &y, sizeof(int));
+	if (p == NULL) {
+		fprintf(stderr, "listen_socket selectserver: failed to bind\n");
+		return (-2);
+	}
 
-			if(bind(listen_sock_fd, p->ai_addr, p->ai_addrlen) < 0){
-				close(listen_sock_fd);
-				continue;
-			}
-			break;
-		}
-
-		if(p==NULL){
-			fprintf(stderr, "listen_socket selectserver: failed to bind\n");
-	        	return(-2);
-		}
-
-		freeaddrinfo(ai);
-		return listen_sock_fd;
+	freeaddrinfo(ai);
+	return listen_sock_fd;
 }
 
 /**
  * Reads the topology file, parses the values and populates the nodes_table_info struct object "nodes"
  */
 int readTopologyFile(char* filePath) {
+
+	cout<<"inside readTopologyFile";
 
 	FILE *fp;
 	char buf[255];
@@ -341,17 +366,19 @@ int readTopologyFile(char* filePath) {
 }
 int main(int nNumberofArgs, char* args[]) {
 
-
 	int c;
 
-	char* filePath;
+	if (nNumberofArgs < 2) {
+		fprintf(stderr, "Missing arguments\n");
+		cout
+				<< "Usage:   -t <topology-file-name> -i <routing-update-interval-in-seconds>";
+		return -1;
+	}
+
+	char* filePath = (char*) malloc (200);
 
 	//Get the ip address and port number and store it in the local variables
-		getIP();
-
-
-
-	printf("Printing nodes table..\n");
+	getIP();
 
 
 	/*TODO change!
@@ -361,11 +388,14 @@ int main(int nNumberofArgs, char* args[]) {
 	while ((c = getopt(nNumberofArgs, args, "t:i:")) != -1) {
 		switch (c) {
 		case 't':
-			cout << "Filename:" << optarg << endl;
+			cout << "Topology file name:" << optarg << endl;
 			strcpy(filePath, optarg);
+			cout<<"break";
 			break;
 
 		case 'i':
+			cout<<"case i : " <<optarg;
+
 			//argument should be an integer number (seconds)
 			if (!isNumber(optarg)) {
 				fprintf(stderr, "Invalid value for -i\n");
@@ -379,25 +409,101 @@ int main(int nNumberofArgs, char* args[]) {
 			break;
 
 		default:
-			cout
-					<< "Usage: %s  -t <topology-file-name> -i <routing-update-interval-in-seconds>", args[0];
+			cout << "Usage: " << args[0]
+					<< "  -t <topology-file-name> -i <routing-update-interval-in-seconds>";
 
 			return -1;
 		}
 	}
 
-	//read the local topology file
-	int r  = readTopologyFile(filePath);
-	printf("%d", r);
+	cout << "Reading the topology file...";
+	//read the local topology file, exit if invalid.
+	if (readTopologyFile(filePath) == -1) {
+		cout << "Topology file is invalid. Exiting...";
+		exit(1);
+	}
 
+	cout<<"Topology file read successfully";
 
+	//Initializing the local routing table...
 
+	//copy local nodes info table (populated from tpoology file) to routing table, so as to initialize it.
+
+	for (int i = 0; i < numberOfNodes; i++) {
+		for (int j = 0; j < numberOfNodes; j++) {
+			routingTable[i][j].srcServerId = nodes[i].serverId;
+			routingTable[i][j].destServerId = nodes[j].serverId;
+
+			//If the node's server id is the current hostId, update the values for that table
+			if (nodes[i].serverId == hostServerId) {
+				routingTable[i][j].linkCost = nodes[j].linkCost;
+				routingTable[j][i].linkCost = nodes[j].linkCost;
+				routingTable[i][j].nextHopId = nodes[j].nextHopId;
+			}
+		}
+	}
+
+//	printRoutingTable();
 
 //	print_nodes_table();
 
-	cout << endl << "sock number : " << createSocket(59999);
+	printRoutingTable();
 
+	cout << endl << "sock number : " << createSocket(59999);
 
 	return 0;
 }
+
+//void printRoutingTable() {
+//	cout << endl << "Routing table : " << endl;
+//
+//	cout<<"\t";
+//	for (int i = 0; i < numberOfNodes; i++) {
+//		cout << "|Node " <<i << "\t";
+//	}
+//	cout<<endl;
+//	for (int i = 0; i < numberOfNodes; i++) {
+//		cout<<"Node "<<i;
+//		for (int j = 0; j < numberOfNodes; j++) {
+//			cout <<"\t|" << routingTable[i][j].linkCost;
+//		}
+//		cout << endl;
+//	}
+//}
+
+void printRoutingTableWithProperFormat() {
+		cout << endl << "Routing table : " << endl;
+
+		cout<<"\t";
+		for (int i = 0; i < numberOfNodes; i++) {
+			cout << "|Node " <<i << "\t";
+		}
+		cout<<endl;
+		for (int i = 0; i < numberOfNodes; i++) {
+			cout<<"Node "<<i;
+			for (int j = 0; j < numberOfNodes; j++) {
+				cout <<"\t|" << routingTable[i][j].linkCost;
+			}
+			cout << endl;
+	}
+}
+/*
+ * Print routing table
+*/
+void printRoutingTable(){
+cout<<"\nserverId\t|nextHopId\t|linkCost\n";
+	for (int i = 0; i < numberOfNodes; i++) {
+		cout<<nodes[i].serverId<<"\t";
+		for (int j = 0; j < numberOfNodes; j++) {
+			cout << "c(" << routingTable[i][j].srcServerId << ","
+					<< routingTable[i][j].destServerId << ") = "
+					<< routingTable[i][j].linkCost << ", ";
+			cout << "NH(" << routingTable[i][j].srcServerId << ","
+					<< routingTable[i][j].destServerId << ") = "
+					<< routingTable[i][j].nextHopId << "\t|";
+		}
+		printf("\n");
+	}
+}
+
 
