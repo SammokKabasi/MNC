@@ -43,6 +43,8 @@ char weights[10][3];
 
 char* ip_address;
 
+int packetsReceived = 0;
+
 void print_nodes_table();
 
 //void print_routing_table3();
@@ -73,7 +75,7 @@ int getIP() {
 		}
 	}
 
-	cout << endl << "The IP address is " << ip_address << endl;
+//	cout << endl << "The IP address is " << ip_address << endl;
 
 	freeifaddrs(ifap);
 	return 0;
@@ -91,11 +93,8 @@ int startServer() {
 	return 0;
 }
 
-//HELPER METHODS
 /**
- * TODO: kuch badal isme
- * Checks if the array pointed to by input holds a valid number.
- * Source: PA2 template
+ * Checks if number (helper)
  * @param  input char* to the array holding the value.
  * @return TRUE or FALSE
  */
@@ -198,75 +197,73 @@ char* print_uint32_ip(uint32_t ip) {
 /*
  * Function to print the nodes table
  */
-void print_nodes_table() {
-	cout<< "serverId\tnoOfTimeouts\tisNeighbour\tlinkCost\tnextHopId",
-			"isDisabled\tserverIp\tserver_port";
+void printNodesTable() {
+	cout<< endl<<"serverId\t\tlinkCost\t\tnextHopId"<<endl;
 
 	for (int i = 0; i < numberOfNodes; i++) {
-		cout << nodes[i].serverId << "\t" << nodes[i].numberOfTimeouts << "\t"
-				<< nodes[i].isNeighbour << "\t" << nodes[i].linkCost << "\t"
-				<< nodes[i].nextHopId << "\t" << nodes[i].isDisabled << "\t"
-				<< print_uint32_ip(nodes[i].serverIp) << "\t"
-				<< nodes[i].serverPort;
+		cout << nodes[i].serverId << "\t\t"<< nodes[i].linkCost << "\t\t"
+				<< nodes[i].nextHopId << endl;
 	}
 }
 
 struct RoutingPacket* decodeUpdate(char* rcvPacketString);
 
-/**TODO: change!
+/**	returns a socket.
  *
  */
 int createSocket(int listeningPort) {
-	cout << endl << "in createSocket";
-	int listen_sock_fd = -1;
+//	cout << endl << "in createSocket";
+	int sockfd = -1;
 
-	struct addrinfo listen_sock_details, *ai, *p;
+	struct addrinfo sockDetails, *ai, *p;
 
-	memset(&listen_sock_details, 0, sizeof(listen_sock_details));
-	listen_sock_details.ai_family = AF_INET;
-	listen_sock_details.ai_socktype = SOCK_DGRAM;
-	listen_sock_details.ai_flags = AI_PASSIVE | AI_ADDRCONFIG;
-	listen_sock_details.ai_protocol = 0;
+	memset(&sockDetails, 0, sizeof(sockDetails));
+
+
+	sockDetails.ai_flags = AI_PASSIVE | AI_ADDRCONFIG;
+	sockDetails.ai_protocol = 0;
+	sockDetails.ai_socktype = SOCK_DGRAM;
+	sockDetails.ai_family = AF_INET;
 	if (listeningPort != -1) {
 		char portString[6];
 		memset(&portString, '\0', 6);
 		sprintf(portString, "%d", listeningPort);
-		int retval = getaddrinfo(NULL, portString, &listen_sock_details, &ai);
+		int retval = getaddrinfo(NULL, portString, &sockDetails, &ai);
 		if (retval != 0) {
-			fprintf(stderr, "UDP_socket creation selectserver: %s\n",
+			fprintf(stderr, "UDP_socket creation selectserver error: %s\n",
 					gai_strerror(retval));
 			return (-1);
 		}
 	} else {
-		int retval = getaddrinfo(NULL, "50000", &listen_sock_details, &ai);
+		int retval = getaddrinfo(NULL, "50000", &sockDetails, &ai);
 		if (retval != 0) {
-			fprintf(stderr, "sending_socket creation selectserver: %s\n",
+			fprintf(stderr, "sending_socket creation error: %s\n",
 					gai_strerror(retval));
 			return (-1);
 		}
 	}
 	for (p = ai; p != NULL; p = p->ai_next) {
-		listen_sock_fd = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
-		if (listen_sock_fd < 0)
+		sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
+		if (sockfd < 0)
 			continue;
 
 		int y = 1;
-		setsockopt(listen_sock_fd, SOL_SOCKET, SO_REUSEADDR, &y, sizeof(int));
+		setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &y, sizeof(int));
 
-		if (bind(listen_sock_fd, p->ai_addr, p->ai_addrlen) < 0) {
-			close(listen_sock_fd);
+		if (bind(sockfd, p->ai_addr, p->ai_addrlen) < 0) {
+			close(sockfd);
 			continue;
 		}
 		break;
 	}
 
 	if (p == NULL) {
-		fprintf(stderr, "listen_socket selectserver: failed to bind\n");
+		fprintf(stderr, "failed to bind.\n");
 		return (-2);
 	}
 
 	freeaddrinfo(ai);
-	return listen_sock_fd;
+	return sockfd;
 }
 
 /**
@@ -274,7 +271,7 @@ int createSocket(int listeningPort) {
  */
 int readTopologyFile(char* filePath) {
 
-	cout << "inside readTopologyFile";
+//	cout << "inside readTopologyFile";
 
 	FILE *fp;
 	char buf[255];
@@ -299,17 +296,17 @@ int readTopologyFile(char* filePath) {
 	//Next numberOfNodes lines is weight information
 	for (int i = 0; i < numberOfNodes; i++) {
 		fscanf(fp, "%s", buf);
-		cout << buf << endl;
+//		cout << buf << endl;
 		nodes[i].serverId = atoi(buf);
 //		cout<<"nodes[i].serverIp : "<<nodes[i].serverIp;
 		fscanf(fp, "%s", buf);
-		cout << buf << endl;
+//		cout << buf << endl;
 		nodes[i].serverIp = parse_ipaddress_string_to_uint32_t(buf);
 		char *ip_str;
 		uint32_t ip_int = parse_ipaddress_string_to_uint32_t(buf);
 		ip_str = print_uint32_ip(ip_int);
 		fscanf(fp, "%s", buf);
-		cout << buf << endl;
+//		cout << buf << endl;
 		nodes[i].serverPort = atoi(buf);
 	}
 	//Parsed nodes should be in order in table
@@ -324,7 +321,7 @@ int readTopologyFile(char* filePath) {
 			}
 		}
 	}
-	cout << "Read Topology File" << endl;
+//	cout << "Read Topology File" << endl;
 //	print_nodes_table();
 
 	//Next numberOfNeighbours lines is
@@ -332,7 +329,7 @@ int readTopologyFile(char* filePath) {
 		fscanf(fp, "%s", buf);
 		if (hostServerId == -1) {
 			hostServerId = atoi(buf);
-			cout << "IP address is " << hostServerId;
+			cout << "Host server id is ->" << hostServerId;
 		} else {
 			if (hostServerId != atoi(buf)) {
 				cout << "Invalid topology file. More than one host ?" << endl;
@@ -360,7 +357,7 @@ int readTopologyFile(char* filePath) {
 	}
 	fclose(fp);
 
-	cout<<"\nThe host server id is "<<hostServerId;
+//	cout<<"\nThe host server id is "<<hostServerId;
 	return 0;
 }
 
@@ -396,16 +393,80 @@ void updateRoutingTable(struct RoutingPacket* rcvPacket) {
 
 int bellmanFord();
 
-int bellmanFord() {
+int bellmanFord() {	//Do bellam-ford equation
 
+	for(int i=0;i<numberOfNodes;i++){
+
+		uint16_t dest_id = nodes[i].serverId;
+		if(hostServerId == dest_id) {
+			continue;
+		}
+		uint16_t temp_cost = 0xffff, min_cost = 0xffff, next_hop_id = -1;
+
+		for(int j=0;j<numberOfNodes;j++){
+			//if the destination is a neighbour..
+			if (nodes[j].serverId == nodes[i].serverId) {
+				if (nodes[i].isNeighbour == 1) {
+					temp_cost = nodes[j].linkCost;
+				}
+			}
+
+			//through own node
+			if (nodes[j].serverId == hostServerId
+					&& nodes[i].isNeighbour == 1) {
+				int roundcost = 0;
+				if (roundcost + routingTable[j][i].linkCost >= 0xffff) {
+					temp_cost = 0xffff;
+				} else {
+					temp_cost = roundcost + routingTable[j][i].linkCost;
+				}
+			}
+			//bellman ford
+			if (nodes[j].isNeighbour == 1) {
+				int roundcost = routingTable[hostServerId - 1][j].linkCost;
+				if (roundcost + routingTable[j][i].linkCost >= 0xffff) {
+					temp_cost = 0xffff;
+				} else {
+
+					temp_cost = roundcost + routingTable[j][i].linkCost;
+				}
+			}
+
+			//reduce cost
+			if (temp_cost >= min_cost) {
+				next_hop_id = nodes[j].serverId;
+			} else {
+				min_cost = temp_cost;
+				if (nodes[j].serverId == hostServerId
+						&& nodes[i].isNeighbour == 1) {
+					next_hop_id =
+							routingTable[hostServerId - 1][dest_id - 1].nextHopId;
+
+				}
+			}
+		}
+		nodes[i].linkCost = min_cost;
+		nodes[i].nextHopId= next_hop_id;
+//		routing_table[host_server_id-1][i].link_cost = min_cost;
+//		routing_table[host_server_id-1][i].next_hop_id = next_hop_id;
+	}
+	return 0;
 }
 
 
 void sendUpdate();
 char* encodeRoutingPacket();
-void sendUpdate() {
-	cout<<"\nInside sendUpdate..";
 
+/**
+ * source : Beej guide, modified
+ *
+ * size is always 8 plus size of each update struct (12) times number of such structs (numberOfNodes)
+ */
+void sendUpdate() {
+//	cout<<"\nInside sendUpdate..";
+
+
+	cout<<endl<<"Sending update to all nodes."<<endl;
 	char* packet = encodeRoutingPacket();
 	struct sockaddr_in dest;
 	dest.sin_family = AF_INET;
@@ -415,10 +476,10 @@ void sendUpdate() {
 				//	cout<<"Sending update to:"<<print_ip(nodes[i].server_ip)<<" at port:"<<nodes[i].server_port<<endl;
 				dest.sin_addr.s_addr = htonl(nodes[i].serverIp);
 				dest.sin_port = htons(nodes[i].serverPort);
-				cout << "\nSending update packet to ip address->"
-						<< nodes[i].serverIp << ", port->"
-						<< nodes[i].serverPort;
-				cout<<"String to send: "<<packet;
+//				cout << "\nSending update packet to ip address->"
+//						<< nodes[i].serverIp << ", port->"
+//						<< nodes[i].serverPort;
+//				cout<<"String to send: "<<packet;
 				sendto(sendingsocketfd, packet, (8 + 12 * numberOfNodes), 0,
 						(struct sockaddr*) &dest, sizeof(dest));
 			}
@@ -463,21 +524,18 @@ int main(int nNumberofArgs, char* args[]) {
 	//Get the ip address and port number and store it in the local variables
 	getIP();
 
-	/*TODO change!
+	/*
 	 * Parse the arguments
 	 * http://www.gnu.org/software/libc/manual/html_node/Example-of-Getopt.html
 	 */
 	while ((c = getopt(nNumberofArgs, args, "t:i:")) != -1) {
 		switch (c) {
 		case 't':
-			cout << "Topology file name:" << optarg << endl;
 			strcpy(filePath, optarg);
 			cout << "break";
 			break;
 
 		case 'i':
-			cout << "case i : " << optarg;
-
 			//argument should be an integer number (seconds)
 			if (!isNumber(optarg)) {
 				fprintf(stderr, "Invalid value for -i\n");
@@ -518,14 +576,15 @@ int main(int nNumberofArgs, char* args[]) {
 
 			//If the node's server id is the current hostId, update the values for that table
 			if (nodes[i].serverId == hostServerId) {
+				routingTable[i][j].nextHopId = nodes[j].nextHopId;
 				routingTable[i][j].linkCost = nodes[j].linkCost;
 				routingTable[j][i].linkCost = nodes[j].linkCost;
-				routingTable[i][j].nextHopId = nodes[j].nextHopId;
+
 			}
 		}
 	}
 
-	cout << endl << "sock number : " << createSocket(59999) << endl;
+//	cout << endl << "sock number : " << createSocket(59999) << endl;
 
 	fd_set master;	//mastersocket
 	fd_set read_fds; //read socket
@@ -549,18 +608,18 @@ int main(int nNumberofArgs, char* args[]) {
 
 	listeningSocketFd = createSocket(port);
 
-	cout << endl << "Creating a socket for sending packets...";
+//	cout << endl << "Creating a socket for sending packets...";
 
 	//Now create a socket for sending packets
 	//lets select a port 38990 for sending, and keep incrementingg till it finds a valid empty port number
 
-	cout << endl << sendingsocketfd << endl;
+//	cout << endl << sendingsocketfd << endl;
 	while (sendingsocketfd == -1) {
 		sendingsocketfd = createSocket(sendingPort++);
 //		cout << endl<< "Sending messages from port " + sendingPort;
 	}
-	cout << endl << "sending socket fd : " << sendingsocketfd;
-	cout << endl << "Sending messages from port " << sendingPort;
+//	cout << endl << "sending socket fd : " << sendingsocketfd;
+	cout << endl << "Sending messages from port " << sendingPort<<endl;
 
 	FD_SET(STDIN, &master);
 	FD_SET(sendingsocketfd, &master);
@@ -568,8 +627,7 @@ int main(int nNumberofArgs, char* args[]) {
 
 	fdmax = max(listeningSocketFd, sendingsocketfd);
 
-	cout << endl << "Server started. Listening at port --->" << port;
-	int packetsReceived = 0;
+	cout << endl << "Server started. Listening at port " << port<<endl;
 	int byteCount;
 
 	struct timeval tv;
@@ -577,7 +635,7 @@ int main(int nNumberofArgs, char* args[]) {
 	tv.tv_sec = timeout;
 	tv.tv_usec = 0;
 
-	cout << "Before while is starting..." << endl;
+//	cout << "Before while is starting..." << endl;
 	for (;;) {
 		memcpy(&read_fds, &master, sizeof(master));
 //		cout<<"inside while... "<<endl;
@@ -679,7 +737,7 @@ int main(int nNumberofArgs, char* args[]) {
 
 }
 
-int packetsReceived;
+
 
 int disableServer(int serverId) {
 	for (int i = 0; i < numberOfNodes; i++) {
@@ -710,11 +768,14 @@ int input(char inputBuf[25]) {
 			cout<<endl<<strlen(token);
 			cout<<"\nremoving newline and space.\n";
 			token[ln] = '\0';
+			cout<<"here";
+			cout<<token<<"end";
+			cout<<(strcmp(token, "disable") == 0);
 		}
 
 		i++;
-		cout << "i value : " << i <<", token -->" <<token<<endl;
-		if (strcmp(token, "update") == 0) {
+//		cout << "i value : " << i <<", token -->" <<token<<endl;
+		if (strcmp(token, "update") == 0 || strcmp(token, "UPDATE")==0) {
 			int sourceServerUpdateId = atoi(strsep(&inputBuf, " "));
 			int destinationServerUpdateId = atoi(strsep(&inputBuf, " "));
 			char* cost = strsep(&inputBuf, " ");
@@ -722,11 +783,10 @@ int input(char inputBuf[25]) {
 			uint16_t cost1;
 			ln = strlen(cost)-1;
 			if (cost[ln] == '\n') {
-				cout << endl << "strlen is " << strlen(cost)<<endl;
 				cout << "\nremoving newline and space.\n";
 				cost[ln] = '\0';
 			}
-			cout<<"The cost string is " <<cost<<"END";
+//			cout<<"The cost string is " <<cost<<"END";
 			if (strcmp(cost, "inf") == 0) {
 				cost1 = 0xffff;
 			} else {
@@ -739,12 +799,15 @@ int input(char inputBuf[25]) {
 					cost1;
 			routingTable[destinationServerUpdateId - 1][sourceServerUpdateId - 1].linkCost =
 					cost1;
-			if (sourceServerUpdateId == hostServerId) {
-				nodes[sourceServerUpdateId - 1].linkCost = cost1;
-			}
+
 			if (destinationServerUpdateId == hostServerId) {
 				nodes[sourceServerUpdateId - 1].linkCost = cost1;
 			}
+			if (sourceServerUpdateId == hostServerId) {
+				nodes[sourceServerUpdateId - 1].linkCost = cost1;
+			}
+
+			sendUpdate();
 			cout << "Successfully updated routing table.";
 		} else if (strcmp(token, "crash") == 0 || strcmp(token, "CRASH") == 0) {
 			cout << "Simulating crash.. \nclosing sockets";
@@ -761,10 +824,12 @@ int input(char inputBuf[25]) {
 		} else if (strcmp(token, "display") == 0
 				|| strcmp(token, "DISPLAY") == 0) {
 
-
-			printRoutingTable();
+cout<<"inside display";
+//			printRoutingTable();
+printNodesTable();
 		} else if (strcmp(token, "disable") == 0
 				|| strcmp(token, "DISABLE") == 0) {
+			cout<<"inside disable";
 			char* serverToDisable = strsep(&inputBuf, " ");
 			int serverToDisable_int = atoi(serverToDisable);
 
@@ -772,7 +837,6 @@ int input(char inputBuf[25]) {
 		} else {
 			cout << "\""<<token<<"\" is an invalid input.";
 			return -1;
-
 		}
 	}
 
@@ -782,46 +846,34 @@ int input(char inputBuf[25]) {
 char* encodeRoutingPacket();
 
 /*
- * This method is used to send routing packet to neighbours.
- * Called by the main-select loop and on step
-*/
-void send_routing_update() {
-
-}
-
-/*
- * Makes a byte string to send via the network
- * return char*
+ * encodes struct to a data byte string to send.
 */
 char* encodeRoutingPacket(){
-cout<<"inside encodeRoutingPacket";
-	//MAKE UPDATE
+//cout<<"inside encodeRoutingPacket";
 	struct RoutingPacket *send_pkt = (RoutingPacket*) malloc(sizeof(RoutingPacket));
 	int count = 0;
 	for(int i=0;i<numberOfNodes;i++){
 		struct ServerInfo *server = (ServerInfo*)malloc(sizeof(ServerInfo));
-		memcpy(&server->serverIp, &nodes[i].serverIp, sizeof(uint32_t));
-		memcpy(&server->port, &nodes[i].serverPort, sizeof(uint16_t));
-
-
-		cout<<"\n::::"<<nodes[i].serverPort;
-		memcpy(&server->serverId, &nodes[i].serverId, sizeof(uint16_t));
+//		cout<<"\n::::"<<nodes[i].serverPort;
 		memcpy(&server->cost, &nodes[i].linkCost, sizeof(uint16_t));
+		memcpy(&server->serverId, &nodes[i].serverId, sizeof(uint16_t));
+		memcpy(&server->port, &nodes[i].serverPort, sizeof(uint16_t));
+		memcpy(&server->serverIp, &nodes[i].serverIp, sizeof(uint32_t));
 		memcpy(&send_pkt->updateFields[count],server,sizeof(ServerInfo));
 		count++;
 	}
 	for (int i=0;i<numberOfNodes;i++){
 		if(nodes[i].linkCost == 0){
-			memcpy(&send_pkt->numberOfUpdateFields, &numberOfNodes, sizeof(uint16_t));
 			memcpy(&send_pkt->serverPort, &nodes[i].serverPort, sizeof(uint16_t));
+			memcpy(&send_pkt->numberOfUpdateFields, &numberOfNodes, sizeof(uint16_t));
 			memcpy(&send_pkt->serverIp, &nodes[i].serverIp, sizeof(uint32_t));
 		}
 	}
 
-	char *send_buf = (char*) malloc(8 + 12*numberOfNodes);
-	memset(send_buf, '\0', (8 + 12*numberOfNodes));
-	uint16_t temp_short;
-	uint32_t temp_long;
+	char *sendBuf = (char*) malloc(8 + 12*numberOfNodes);
+	memset(sendBuf, '\0', (8 + 12*numberOfNodes));
+	uint16_t temp_short = 0;
+	uint32_t temp_long = 0;
 
 //	cout<<endl<<send_buf;
 
@@ -830,9 +882,9 @@ cout<<"inside encodeRoutingPacket";
 
 
 
-	memcpy(send_buf,&temp_short, sizeof(uint16_t));
-	cout<<send_buf;
-	send_buf += sizeof(uint16_t);
+	memcpy(sendBuf,&temp_short, sizeof(uint16_t));
+//	cout<<send_buf;
+	sendBuf =  sendBuf + sizeof(uint16_t);
 //	cout<<":::2"<<send_buf<<endl;
 
 //	cout<<endl<<send_buf;
@@ -840,63 +892,62 @@ cout<<"inside encodeRoutingPacket";
 
 	//COPY Serverport
 	temp_short = htons(send_pkt->serverPort);
-	memcpy(send_buf,&temp_short, sizeof(uint16_t));
+	memcpy(sendBuf,&temp_short, sizeof(uint16_t));
 
 
 	uint16_t some ;
-	memcpy(&some, send_buf, sizeof(2));
-	cout<<"\n:::::--"<<ntohs(some);
+	memcpy(&some, sendBuf, sizeof(2));
+//	cout<<"\n:::::--"<<ntohs(some);
 
 
-	send_buf += sizeof(uint16_t);
+	sendBuf = sendBuf + sizeof(uint16_t);
 
-	cout<<endl<<send_buf;
+//	cout<<endl<<send_buf;
 
 
 	//COPY server_ip
 	temp_long = htonl(send_pkt->serverIp);
-	memcpy(send_buf,&temp_long, sizeof(uint32_t));
-	send_buf += sizeof(uint32_t);
+	memcpy(sendBuf,&temp_long, sizeof(uint32_t));
+	sendBuf = sendBuf + sizeof(uint32_t);
 
-	cout<<endl<<send_buf;
+//	cout<<endl<<send_buf;
 
 
-	//COPY NODE DATA
+	//node info
 	for(int i=0;i<numberOfNodes;i++){
-		//COPY server_ip
+		//serverIp
 		temp_long = htonl(send_pkt->updateFields[i].serverIp);
-		memcpy(send_buf,&temp_long, sizeof(uint32_t));
-		send_buf += sizeof(uint32_t);
-		//COPY server_port
-		temp_short = htons(send_pkt->updateFields[i].port);
-		memcpy(send_buf,&temp_short, sizeof(uint16_t));
-		send_buf += sizeof(uint16_t);
-		//COPY dummy
-		//To solve the constructor bug.
 		temp_short = 0;
-		memcpy(send_buf,&temp_short, sizeof(uint16_t));
-		send_buf += sizeof(uint16_t);
+		memcpy(sendBuf,&temp_long, sizeof(uint32_t));
+		sendBuf = sendBuf + sizeof(uint32_t);
+		//port
+		temp_short = htons(send_pkt->updateFields[i].port);
+		memcpy(sendBuf,&temp_short, sizeof(uint16_t));
+		sendBuf = sendBuf + sizeof(uint16_t);
+		//send empty zeroes
+		temp_short = 0;
+		memcpy(sendBuf,&temp_short, sizeof(uint16_t));
+		sendBuf = sendBuf + sizeof(uint16_t);
 		//COPY server_id
 		temp_short = htons(send_pkt->updateFields[i].serverId);
-		memcpy(send_buf,&temp_short, sizeof(uint16_t));
-		send_buf += sizeof(uint16_t);
+		memcpy(sendBuf,&temp_short, sizeof(uint16_t));
+		sendBuf = sendBuf + sizeof(uint16_t);
 		//COPY link_cost
 		temp_short = htons(send_pkt->updateFields[i].cost);
-		memcpy(send_buf,&temp_short, sizeof(uint16_t));
-		send_buf += sizeof(uint16_t);
-		cout<<"temp short->"<<temp_short;
-		cout<<", temp_long->"<<temp_long;
-		cout <<", send_buf->"<< send_buf<<endl;
+		memcpy(sendBuf,&temp_short, sizeof(uint16_t));
+		sendBuf = sendBuf + sizeof(uint16_t);
+//		cout<<"temp short->"<<temp_short;
+//		cout<<", temp_long->"<<temp_long;
+//		cout <<", send_buf->"<< send_buf<<endl;
 	}
 
-	cout<<endl<<&send_buf;
+//	cout<<endl<<&send_buf;
 
-	//BACKTRACK THE POINTER
-	send_buf -= (8 + 12*numberOfNodes);
+	sendBuf = sendBuf - (8 + 12*numberOfNodes);
 
-	cout<<"String to send ->" <<send_buf;
-	cout<<endl<<"length of string to send ->"<<strlen(send_buf);
-	return send_buf;
+//	cout<<"String to send ->" <<send_buf;
+//	cout<<endl<<"length of string to send ->"<<strlen(send_buf);
+	return sendBuf;
 
 }
 
@@ -922,7 +973,7 @@ cout<<"inside encodeRoutingPacket";
  * params (char* recv_packet)
  * return struct routing_packet*
  *
- * TODO change
+ *
  */
 struct RoutingPacket* decodeUpdate(char* rcvPacketString) {
 	struct RoutingPacket *receivedRoutingPacket = (RoutingPacket*) malloc(
@@ -935,50 +986,50 @@ struct RoutingPacket* decodeUpdate(char* rcvPacketString) {
 	memcpy(&temp16, rcvPacketString, sizeof(uint16_t));
 	temp16 = ntohs(temp16);
 	memcpy(&receivedRoutingPacket->numberOfUpdateFields, &temp16, sizeof(uint16_t));
-	rcvPacketString += sizeof(uint16_t);
-//serverPort
+	rcvPacketString = rcvPacketString  + sizeof(uint16_t);
+//host serverPort
 	memcpy(&temp16, rcvPacketString, sizeof(uint16_t));
 	temp16 = ntohs(temp16);
 	memcpy(&receivedRoutingPacket->serverPort, &temp16, sizeof(uint16_t));
-	rcvPacketString += sizeof(uint16_t);
-//serverIp
+	rcvPacketString = rcvPacketString  + sizeof(uint16_t);
+//host serverIp
 	memcpy(&temp32, rcvPacketString, sizeof(uint32_t));
 	temp32 = ntohl(temp32);
 	memcpy(&receivedRoutingPacket->serverIp, &temp32, sizeof(uint32_t));
-	rcvPacketString += sizeof(uint32_t);
+	rcvPacketString = rcvPacketString  + sizeof(uint32_t);
 
 	for (int i = 0; i < receivedRoutingPacket->numberOfUpdateFields; i++) {
 
 		struct ServerInfo *server = (ServerInfo*) malloc(sizeof(server));
-		//READ next 4 bytes server_ip
+		//serverIp
 		memcpy(&temp32, rcvPacketString, sizeof(uint32_t));
 		temp32 = ntohl(temp32);
 		memcpy(&server->serverIp, &temp32, sizeof(uint32_t));
-		rcvPacketString += sizeof(uint32_t);
+		rcvPacketString = rcvPacketString  + sizeof(uint32_t);
 
-		//READ next 2 bytes server_port
+		//port
 		memcpy(&temp16, rcvPacketString, sizeof(uint16_t));
 		temp16 = ntohs(temp16);
 		memcpy(&server->port, &temp16, sizeof(uint16_t));
-		rcvPacketString += sizeof(uint16_t);
+		rcvPacketString = rcvPacketString  + sizeof(uint16_t);
 
-		//READ next 2 bytes dummy
+		//empty bits
 		memcpy(&temp16, rcvPacketString, sizeof(uint16_t));
 		temp16 = ntohs(temp16);
 		memcpy(&server->blank, &temp16, sizeof(uint16_t));
-		rcvPacketString += sizeof(uint16_t);
+		rcvPacketString = rcvPacketString  + sizeof(uint16_t);
 
-		//READ next 2 bytes server_id
+		//serverId
 		memcpy(&temp16, rcvPacketString, sizeof(uint16_t));
 		temp16 = ntohs(temp16);
 		memcpy(&server->serverId, &temp16, sizeof(uint16_t));
-		rcvPacketString += sizeof(uint16_t);
+		rcvPacketString = rcvPacketString  + sizeof(uint16_t);
 
-		//READ next 2 bytes link_cost
+		//linkCost
 		memcpy(&temp16, rcvPacketString, sizeof(uint16_t));
 		temp16 = ntohs(temp16);
 		memcpy(&server->cost, &temp16, sizeof(uint16_t));
-		rcvPacketString += sizeof(uint16_t);
+		rcvPacketString = rcvPacketString  + sizeof(uint16_t);
 
 		memcpy(&receivedRoutingPacket->updateFields[i], server, sizeof(ServerInfo));
 	}
